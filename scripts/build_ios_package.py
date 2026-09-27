@@ -277,8 +277,8 @@ def validate(root_dir: Path, files: dict[str, Path], variant: str, report: Repor
                 report.error(f"dependencies 缺少方案 {dep}.schema.yaml（full 版應該有）")
             else:
                 report.warn(
-                    f"dependencies 缺少方案 {dep}（lite 版靠元書自帶／App 內方案提供，"
-                    f"如反查失效請改用 full 版）"
+                    f"dependencies 缺少方案 {dep}：元書嘅 RimeSharedSupport 唔包含 PC 內置方案"
+                    f"（官方文檔），所以 lite 版冇得靠 App，反查會冇料；要反查請用 full 版"
                 )
         else:
             report.warn(f"dependencies 缺少方案 {dep}（可能由前端 App 自帶提供）")

@@ -432,13 +432,27 @@ def build_variant(
     }
     validate(staging, staged, variant, report)
 
-    # 打包 zip（固定時間戳 = 可重現 build）
+    # 打包 zip（固定時間戳 = 可重現 build；目錄項／結構盡量同 GitHub codeload 一致，
+    # 因為 iOS 元書嘅解壓對某些 zip 產生器嘅輸出較敏感）
+    STAMP = (2020, 1, 1, 0, 0, 0)
     zip_path = out / f"{name}.zip"
     if zip_path.exists():
         zip_path.unlink()
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+
+    def dir_entry(path: str) -> zipfile.ZipInfo:
+        info = zipfile.ZipInfo(path, date_time=STAMP)
+        info.compress_type = zipfile.ZIP_STORED
+        info.external_attr = (0o40755 << 16) | 0x10  # 目錄 + MS-DOS dir flag
+        return info
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        zf.writestr(dir_entry(f"{name}/"), b"")
+        for sub in sorted({str(Path(rel).parent).replace(os.sep, "/")
+                           for rel in staged if "/" in rel}):
+            if sub not in (".", ""):
+                zf.writestr(dir_entry(f"{name}/{sub}/"), b"")
         for rel in sorted(staged):
-            info_zip = zipfile.ZipInfo(f"{name}/{rel}", date_time=(1980, 1, 1, 0, 0, 0))
+            info_zip = zipfile.ZipInfo(f"{name}/{rel}", date_time=STAMP)
             info_zip.compress_type = zipfile.ZIP_DEFLATED
             info_zip.external_attr = 0o644 << 16
             zf.writestr(info_zip, staged[rel].read_bytes())

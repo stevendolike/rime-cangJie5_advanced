@@ -133,6 +133,29 @@ jobs:
             dist/SHA256SUMS.txt
             dist/ios-packages.json
 
+      - name: 發佈 codeload 分支（GitHub 自己生成 zip，兼容性最好）
+        run: |
+          set -e
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          for pair in "dist/rime-cangJie5_advanced-full:ios-package" "dist/rime-cangJie5_advanced-lite:ios-package-lite"; do
+            src="${pair%%:*}"; br="${pair##*:}"
+            [ -d "$src" ] || continue
+            rm -rf "$RUNNER_TEMP/publish"; mkdir -p "$RUNNER_TEMP/publish"
+            cp -r "$src"/. "$RUNNER_TEMP/publish/"
+            [ -f README-ios.md ] && cp README-ios.md "$RUNNER_TEMP/publish/"
+            cd "$RUNNER_TEMP/publish"
+            git init -q -b "$br"
+            git add -A
+            git commit -q -m "iOS 方案包（${br}）：由 ${GITHUB_SHA:0:8} 自動生成"
+            git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${br}"
+            echo "已發佈分支 ${br} → https://codeload.github.com/${GITHUB_REPOSITORY}/zip/refs/heads/${br}"
+            cd "$GITHUB_WORKSPACE"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN || github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+
       - name: "發佈到 Release（tag: ios）"
         env:
           # 有設 PERSONAL_ACCESS_TOKEN 就用佢（同 release.yml 一樣），冇就用內建 token。

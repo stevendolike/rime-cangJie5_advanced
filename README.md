@@ -1,4 +1,4 @@
-[English](README-en.md) | [官話](README-cmn.md)
+[English](README-en.md) | [官話](README-cmn.md) | [iOS 元書方案包](README-ios.md)
 
 <div lang="yue-HK">
 
@@ -19,6 +19,15 @@
 ![DEMO2.gif](./DEMO/DEMO2.gif)
 ### 【粵拼快打】DEMO3
 ![DEMO3.gif](./DEMO/DEMO3.gif)
+
+## iOS（元書輸入法）
+
+iPhone / iPad 用 **元書輸入法**（Hamster 3）可以直接導入本方案，GitHub Actions 每次改動都會自動砌好方案包：
+
+- 精簡版：`https://github.com/stevendolike/rime-cangJie5_advanced/releases/download/ios/rime-cangJie5_advanced-lite.zip`
+- 全套版（含反查朙月拼音／筆畫／粵語兩分、quick5、emoji）：`https://github.com/stevendolike/rime-cangJie5_advanced/releases/download/ios/rime-cangJie5_advanced-full.zip`
+
+安裝步驟、疑難排解、自動化流程詳見 **[README-ios.md](README-ios.md)**。
 
 ## Planning / Features / Roadmap｜我哋目前嘅進度係：
 1. <s>預設主要輸入法【倉頡】｜副輸入法【粵拼】</s>

@@ -1,0 +1,168 @@
+name: Build iOS 元書 package
+
+# 目的：每次方案檔案有改動，都自動砌好可以直接喺 iOS「元書輸入法」(Hamster 3) 用嘅方案包，
+#      然後掛上 Release（固定 tag `ios`），令下載網址永遠唔變：
+#
+#   lite（精簡）: https://github.com/stevendolike/rime-cangJie5_advanced/releases/download/ios/rime-cangJie5_advanced-lite.zip
+#   full（全套）: https://github.com/stevendolike/rime-cangJie5_advanced/releases/download/ios/rime-cangJie5_advanced-full.zip
+#
+# 用家喺元書：「輸入方案」→ 右上角選單 →「下載方案」→ ➕ 貼上上面網址 →
+#              下載完再「方案目錄切換」揀返個資料夾。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.yaml'
+      - '*.txt'
+      - 'opencc/**'
+      - 'scripts/build_ios_package.py'
+      - 'scripts/verify_ios_package.sh'
+      - '.github/workflows/ios-package.yml'
+  schedule:
+    - cron: '0 10 * * 6'   # 每週六 10:00 UTC（fetch upstream 係週四，先食到新碼表）
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: '要砌邊個版本'
+        type: choice
+        default: both
+        options: [both, lite, full]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-package
+  cancel-in-progress: false
+
+env:
+  PACKAGE_PREFIX: rime-cangJie5_advanced
+  RELEASE_TAG: ios
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install 驗證工具
+        run: |
+          python -m pip install --upgrade pip pyyaml
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ibus-rime
+          # 註：rime_deployer 冇 --help（會出 "invalid arguments." 並 exit 1），
+          # 所以唔可以用 `rime_deployer --help && echo` 做檢查
+          command -v rime_deployer >/dev/null && echo "rime_deployer OK: $(command -v rime_deployer)"
+
+      - name: 拉依賴方案（反查用 luna_pinyin / stroke / loengfan、速成 quick5、emoji、opencc）
+        run: |
+          set -e
+          mkdir -p third_party
+          # rime-cantonese 只用嚟補 opencc/t2hkf.json（本 repo 冇，但 jyut6ping3 方案要用）
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/rime/rime-cantonese.git third_party/rime-cantonese
+          (cd third_party/rime-cantonese && git sparse-checkout set opencc)
+          for spec in \
+            rime/rime-quick:rime-quick \
+            rime/rime-cangjie:rime-cangjie \
+            rime/rime-stroke:rime-stroke \
+            rime/rime-luna-pinyin:rime-luna-pinyin \
+            CanCLID/rime-loengfan:rime-loengfan \
+            rime/rime-emoji-cantonese:rime-emoji-cantonese ; do
+              src="${spec%%:*}"; dst="${spec##*:}"
+              git clone --depth 1 "https://github.com/$src.git" "third_party/$dst"
+          done
+          for d in third_party/*/; do
+            printf '%-28s %s\n' "$(basename "$d")" "$(git -C "$d" rev-parse --short HEAD)"
+          done
+
+      - name: 砌 lite + full 方案包
+        run: |
+          python scripts/build_ios_package.py \
+            --root . \
+            --deps third_party \
+            --out dist \
+            --variant "${{ github.event.inputs.variant || 'both' }}"
+
+      - name: 驗證（真 rime_deployer 部署 + 檢查每個方案都編譯成功）
+        run: bash scripts/verify_ios_package.sh dist "$PACKAGE_PREFIX"
+
+      - name: 產生 SHA256 同 Release 說明
+        run: |
+          cd dist
+          sha256sum -- *.zip | tee SHA256SUMS.txt
+          {
+            echo "## iOS 元書輸入法方案包"
+            echo
+            echo "直接喺元書「輸入方案」→ 右上角選單 →「下載方案」→ ➕ 貼上以下任何一條網址："
+            echo
+            for zip_file in ./*.zip; do
+              asset="${zip_file#./}"
+              echo "- \`${asset}\` — https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/${asset}"
+            done
+            echo
+            echo "| 檔案 | 大小 | SHA256 |"
+            echo "| --- | --- | --- |"
+            for zip_file in ./*.zip; do
+              asset="${zip_file#./}"
+              size=$(du -h "$zip_file" | cut -f1)
+              sum=$(sha256sum "$zip_file" | cut -d' ' -f1)
+              echo "| ${asset} | ${size} | \`${sum:0:16}…\` |"
+            done
+            echo
+            echo "方案內容（lite / full 分別）見 [README-ios.md](https://github.com/${{ github.repository }}/blob/main/README-ios.md)。"
+            echo
+            echo "由 commit \`${GITHUB_SHA:0:8}\` 自動砌出（$(date -u '+%Y-%m-%d %H:%M UTC')）。"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-packages
+          if-no-files-found: error
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+            dist/ios-packages.json
+
+      - name: "發佈到 Release（tag: ios）"
+        env:
+          # 有設 PERSONAL_ACCESS_TOKEN 就用佢（同 release.yml 一樣），冇就用內建 token。
+          # 註：fork 嘅 repo 設定如果係「Read repository contents」，內建 token 冇寫入權，
+          # 咁就要喺 Settings → Actions → General → Workflow permissions 開 "Read and write"，
+          # 或者加一個 PERSONAL_ACCESS_TOKEN secret。
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN || github.token }}
+        run: |
+          set -e
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "iOS 元書輸入法方案包（自動更新）" \
+              --notes-file dist/release-notes.md
+          else
+            gh release create "$RELEASE_TAG" \
+              --title "iOS 元書輸入法方案包（自動更新）" \
+              --notes-file dist/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/SHA256SUMS.txt dist/ios-packages.json --clobber
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | "\(.name)  \(.size) bytes\n\(.url)"'
+
+      - name: 喺 job summary 顯示結果
+        if: always()
+        run: |
+          {
+            echo "### iOS 元書方案包"
+            echo
+            [ -f dist/release-notes.md ] && cat dist/release-notes.md
+            echo
+            echo '```'
+            tail -n 30 dist/ios-packages.json 2>/dev/null || echo "(冇 ios-packages.json)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

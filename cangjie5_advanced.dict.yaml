@@ -1,0 +1,21 @@
+# Rime dictionary
+# encoding: utf-8
+#
+# cangjie5_advanced - 倉35粵混候詞庫
+#
+# Source: https://github.com/CanCLID/rime-cantonese-upstream
+
+---
+name: cangjie5_advanced
+version: "2025.02.28"
+# based on version: "2022.03.17" (jyut6ping3.dict.yaml)
+sort: by_weight
+vocabulary: essay-cantonese
+import_tables:
+  - cangjie5_advanced.chars
+  - cangjie5_advanced.words
+  - cangjie5_advanced.phrase
+  - cangjie5_advanced.maps
+#  - cangjie5_advanced.custom
+#  - cangjie5_advanced.cj3ext
+...

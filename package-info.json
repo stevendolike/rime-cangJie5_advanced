@@ -1,0 +1,15 @@
+{
+  "package": "rime-cangJie5_advanced-lite",
+  "variant": "lite",
+  "generated_for": "iOS 元書輸入法 (Hamster 3)",
+  "schemas": [
+    "cangjie5_advanced",
+    "cangjie5",
+    "ms_quick",
+    "cangjie5_express",
+    "jyut6ping3",
+    "jyut6ping3_ipa"
+  ],
+  "file_count": 37,
+  "note": "Rime 用戶目錄內容；喺元書用「壓縮包導入」或「下載方案」導入後，去「輸入方案 → 方案目錄切換」揀返呢個資料夾。"
+}
